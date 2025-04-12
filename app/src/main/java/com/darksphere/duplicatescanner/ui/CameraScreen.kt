@@ -159,13 +159,15 @@ fun CameraScreen(
                                 barcode = result.barcode,
                                 listId = listId,
                                 onConfirm = {
-                                    viewModel.processBarcode(result.barcode, listId)
-                                    viewModel.clearScanResult()
-                                    showDialog = false
+                                    scope.launch {
+                                        viewModel.processBarcode(result.barcode, listId)
+                                        showDialog = false
+                                        viewModel.clearScanResult()
+                                    }
                                 },
                                 onDismiss = { 
-                                    viewModel.clearScanResult()
                                     showDialog = false
+                                    viewModel.clearScanResult()
                                 }
                             )
                         }
@@ -176,8 +178,8 @@ fun CameraScreen(
                             ErrorDialog(
                                 message = result.message,
                                 onDismiss = { 
-                                    viewModel.clearScanResult()
                                     showDialog = false
+                                    viewModel.clearScanResult()
                                 }
                             )
                         }
