@@ -38,6 +38,7 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    var isScanningPaused by remember { mutableStateOf(false) }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -103,24 +104,29 @@ fun CameraScreen(
                                 setAnalyzer(
                                     Executors.newSingleThreadExecutor()
                                 ) { imageProxy ->
-                                    val mediaImage = imageProxy.image
-                                    if (mediaImage != null) {
-                                        val image = InputImage.fromMediaImage(
-                                            mediaImage,
-                                            imageProxy.imageInfo.rotationDegrees
-                                        )
-                                        val scanner = BarcodeScanning.getClient()
-                                        scanner.process(image)
-                                            .addOnSuccessListener { barcodes ->
-                                                barcodes.firstOrNull()?.rawValue?.let { value ->
-                                                    scope.launch {
-                                                        viewModel.onBarcodeDetected(value)
+                                    if (!isScanningPaused) {
+                                        val mediaImage = imageProxy.image
+                                        if (mediaImage != null) {
+                                            val image = InputImage.fromMediaImage(
+                                                mediaImage,
+                                                imageProxy.imageInfo.rotationDegrees
+                                            )
+                                            val scanner = BarcodeScanning.getClient()
+                                            scanner.process(image)
+                                                .addOnSuccessListener { barcodes ->
+                                                    barcodes.firstOrNull()?.rawValue?.let { value ->
+                                                        scope.launch {
+                                                            isScanningPaused = true
+                                                            viewModel.onBarcodeDetected(value)
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            .addOnCompleteListener {
-                                                imageProxy.close()
-                                            }
+                                                .addOnCompleteListener {
+                                                    imageProxy.close()
+                                                }
+                                        } else {
+                                            imageProxy.close()
+                                        }
                                     } else {
                                         imageProxy.close()
                                     }
@@ -145,12 +151,13 @@ fun CameraScreen(
             scanResult?.let { result ->
                 when (result) {
                     is ScanResult.Success -> {
-                        SuccessOverlay()
                         LaunchedEffect(Unit) {
                             listId?.let { viewModel.processBarcode(result.barcode, it) }
-                            delay(5000)
+                            delay(3000)
                             viewModel.clearScanResult()
+                            isScanningPaused = false
                         }
+                        SuccessOverlay()
                     }
                     is ScanResult.Duplicate -> {
                         var showDialog by remember { mutableStateOf(true) }
@@ -163,11 +170,13 @@ fun CameraScreen(
                                         viewModel.processBarcode(result.barcode, listId)
                                         showDialog = false
                                         viewModel.clearScanResult()
+                                        isScanningPaused = false
                                     }
                                 },
                                 onDismiss = { 
                                     showDialog = false
                                     viewModel.clearScanResult()
+                                    isScanningPaused = false
                                 }
                             )
                         }
@@ -180,6 +189,7 @@ fun CameraScreen(
                                 onDismiss = { 
                                     showDialog = false
                                     viewModel.clearScanResult()
+                                    isScanningPaused = false
                                 }
                             )
                         }
